@@ -40,6 +40,7 @@ class DatabaseCreator {
                                     ;
                             });
                     } else {
+                        // TODO: можно вставить DROP DATABASE, есть работающий способ
                         console.log('Database is found.');
                     }
                 }).then(() => {
@@ -247,11 +248,21 @@ class DatabaseCreator {
                 table.string('name', 50);
                 table.enu('view_type', entityTypeEnumValues);
                 table.boolean('is_disabled_4copy');
+                table.boolean('is_deleted');
                 table.timestamp('timestamp')
                     .defaultTo(databaseKnex.fn.now());
                 table.uuid('creator')
                     .references('id')
                     .inTable('user');
+            })
+            .createTable('view_text', table => {
+                table.uuid('view_id')
+                    .references('id')
+                    .inTable('view');
+                table.string('langu_id', 2)
+                    .references('id')
+                    .inTable('langu');
+                table.string('description', 100);
             })
             .createTable('view_assignment', table => {
                 table.uuid('user_id')
@@ -278,9 +289,12 @@ class DatabaseCreator {
                 table.enu('sort_direction', sortDirectionEnumValues);
             })
             .createTable('view_item_keyword', table => {
-                table.uuid('keyword_id');
-                table.uuid('view_item_id');
-
+                table.uuid('keyword_id')
+                    .references('id')
+                    .inTable('keyword');
+                table.uuid('view_item_id')
+                    .references('id')
+                    .inTable('view_item');
                 table.primary(['keyword_id', 'view_item_id']);
             })
 
