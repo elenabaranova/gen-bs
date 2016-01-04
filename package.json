@@ -7,6 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "deploy": "bash ./scripts/heroku-deploy.sh",
     "db:create": "node ./scripts/create-database.js",
+    "test:views": "node ./test/test-models.js",
     "start": "node index.js",
     "rpcserver": "node ./test/utils/RPCServer.js"
   },
@@ -25,7 +26,9 @@
     "node": "4.2.2"
   },
   "dependencies": {
+    "async": "1.5.0",
     "body-parser": "1.14.1",
+    "bunyan": "1.5.1",
     "change-case": "2.3.1",
     "domain": "*",
     "express": "4.13.3",
@@ -35,5 +38,7 @@
     "node-uuid": "1.4.7",
     "pg": "4.4.3",
     "ws": "0.8.1"
+  },
+  "devDependencies": {
   }
 }
