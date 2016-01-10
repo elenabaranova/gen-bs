@@ -6,17 +6,18 @@ const Http = require('http');
 const WebSocketServer = require('ws').Server;
 
 const Config = require('./utils/Config');
+
 const ControllersFacade = require('./controllers/ControllersFacade');
 const ServicesFacade = require('./services/ServicesFacade');
 const ModelsFacade = require('./models/ModelsFacade');
 
+const models = new ModelsFacade(Config);
 const StartupTaskManager = require('./startup/StartupTaskManager');
 
-const models = new ModelsFacade();
 const services = new ServicesFacade(Config, models);
 const controllers = new ControllersFacade(services);
 
-// Create service.
+// Create service
 const httpServer = Http.createServer();
 const app = new Express();
 
