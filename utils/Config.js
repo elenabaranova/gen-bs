@@ -12,8 +12,18 @@ const SETTINGS = {
     database: {
         host: ENV.WS_DATABASE_SERVER || 'localhost',
         user: ENV.WS_DATABASE_USER || 'postgres',
-        password: ENV.WS_DATABASE_PASSWORD || 'zxcasdqwe',
+        password: ENV.WS_DATABASE_PASSWORD || 'postgres',
         databaseName: ENV.WS_DATABASE_NAME || 'genomixdb'
+    },
+    logger: {
+        app_name: 'genomix',
+        console: {
+            level: 'trace'
+        },
+        file: {
+            level: 'warn',
+            path: 'logs/genomix.log'
+        }
     }
 };
 
