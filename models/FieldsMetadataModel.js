@@ -1,61 +1,210 @@
 'use strict';
 
 const _ = require('lodash');
-const Uuid = require('node-uuid');
+const async = require('async');
 
-const FsUtils = require('../utils/FileSystemUtils');
+const ChangeCaseUtil = require('../utils/ChangeCaseUtil');
+const ModelBase = require('./ModelBase');
 
-const loadFieldsMetadataFunc = (callback) => {
-    FsUtils.getAllFiles(__dirname + '/../defaults/samples/', '.json', (error, files) => {
-        if (error) {
-            callback(error);
-        } else {
-            const fieldsArrays = _.map(files, (file) => FsUtils.getFileContentsAsString(file))
-                .map(contents => JSON.parse(contents))
-                .map(sampleMetadata => sampleMetadata.fields);
-            const fields = _.flatten(fieldsArrays);
-            callback(null, fields);
-        }
-    });
-};
+const mappedColumns = [
+    'id',
+    'name',
+    'source_name',
+    'value_type',
+    'filter_control_enable',
+    'is_mandatory',
+    'is_editable',
+    'is_invisible',
+    'is_multi_select',
+    'langu_id',
+    'description'
+];
 
-class FieldsMetadataModel {
-    constructor() {
-        loadFieldsMetadataFunc((error, fields) => {
-            if (error) {
-                throw new Error(error);
+class FieldsMetadataModel extends ModelBase {
+    constructor(models) {
+        super(models, 'field_metadata', mappedColumns);
+    }
+
+    add(languId, metadata, callback) {
+        this._add(languId, metadata, false, callback);
+    }
+
+    addWithId(languId, metadata, callback) {
+        this._add(languId, metadata, true, callback);
+    }
+
+    find(metadataId, callback) {
+        async.waterfall([
+            (cb) => {
+                this._fetch(metadataId, cb);
+            },
+            (metadata, cb) => {
+                this._mapMetadata(metadata, cb);
             }
-            this.fields = fields;
-        });
+        ], callback);
+    }
+
+    findMany(metadataIds, callback) {
+        async.waterfall([
+            (cb) => {
+                this._fetchByIds(metadataIds, cb);
+            },
+            (fieldsMetadata, cb) => {
+                async.map(fieldsMetadata, (metadata, cbk) => {
+                    this._mapMetadata(metadata, cbk);
+                }, cb);
+            }
+        ], callback);
     }
 
     findByUserAndSampleId(userId, sampleId, callback) {
-        const fields = _.filter(this.fields, field => field.sourceName === sampleId);
-        if (!fields || !fields.length) {
-            callback(new Error('No fields found for the specified sample'));
-        } else {
-            callback(null, fields);
-        }
+        async.waterfall([
+            (cb) => {
+                this._fetchMetadataBySampleId(sampleId, cb);
+            },
+            (metadata, cb) => {
+                if (metadata.creator == userId) {
+                    cb(null, metadata);
+                } else {
+                    cb(new Error('Security check: user not found'));
+                }
+            },
+            (metadata, cb) => {
+                this._mapMetadata(metadata, cb);
+            }
+        ], callback);
     }
 
-    addWithId(field, callback) {
-        this.fields.push(field);
-        callback(null, field);
+    _add(languId, metadata, withId, callback) {
+        this.db.transactionally((trx, cb) => {
+            async.waterfall([
+                (cb) => {
+                    const dataToInsert = {
+                        id: (withId ? metadata.id : this._generateId()),
+                        name: metadata.name,
+                        sourceName: metadata.sourceName,
+                        valueType: metadata.valueType || 'user',
+                        filterControlEnable: metadata.filterControlEnable || true,
+                        isMandatory: metadata.isMandatory || false,
+                        isEditable: metadata.isEditable || true,
+                        isInvisible: metadata.isInvisible || false,
+                        isMultiSelect: metadata.isMultiSelect || true
+                    };
+                    this._insert(dataToInsert, trx, cb);
+                },
+                (metadataId, cb) => {
+                    const dataToInsert = {
+                        fieldId: metadataId,
+                        languId: languId,
+                        description: metadata.description,
+                    };
+                    this._insertIntoTable('field_text', dataToInsert, trx, (error) => {
+                        cb(error, metadataId);
+                    });
+                }
+            ], cb);
+        }, callback);
     }
 
-    add(field, callback) {
-        field.id = Uuid.v4();
-        this.fields.push(field);
-        callback(null, field);
+    _mapMetadata(metadata, callback) {
+        this._fetchMetadataKeywords(metadata.id, (error, keywords) => {
+            if (error) {
+                cb(error);
+            } else {
+                metadata.keywords = keywords;
+                callback(null, this._mapColumns(metadata));
+            }
+        });
     }
 
-    find(id, callback) {
-        const field = _.find(this.fields, field => field.id === id);
-        if (field) {
-            callback(null, field);
-        } else {
-            callback(new Error('Field not found'));
-        }
+    _fetchMetadataBySampleId(sampleId, callback) {
+        this.db.asCallback((knex, cb) => {
+            knex.select()
+                .from('vcf_file_sample')
+                .innerJoin('vcf_file_sample_values', 'vcf_file_sample_values.vcf_file_sample_version_id', 'vcf_file_sample_version.id')
+                .innerJoin('field_metadata', 'field_metadata.id', 'vcf_file_sample_values.field_id')
+                .innerJoin('field_text', 'field_text.field_id', 'field_metadata.id')
+                .orderBy('vcf_file_sample_version.timestamp', 'desc')
+                .where('vcf_file_sample_id', sampleId)
+                .limit(1)
+                .asCallback((error, metadata) => {
+                    if (error) {
+                        cb(error);
+                    } else if (data.length > 0) {
+                        cb(null, ChangeCaseUtil.convertKeysToCamelCase(metadata[0]));
+                    } else {
+                        cb(new Error('Item not found: ' + sampleId));
+                    }
+                });
+        }, callback);
+    }
+
+    _fetchMetadataKeywords(metadataId, callback) {
+        this.db.asCallback((knex, cb) => {
+            knex.select('id', 'field_id', 'value')
+            .from('keyword')
+            .where('field_id', metadataId)
+            .asCallback((error, keywords) => {
+                if (error) {
+                    cb(error);
+                } else {
+                    this._mapKeywords(keywords, (error, result) => {
+                        if (error) {
+                            cb(error);
+                        } else {
+                            cb(null, ChangeCaseUtil.convertKeysToCamelCase(result));
+                        }
+                    });
+                }
+            });
+        }, callback);
+    }
+
+    _mapKeywords(keywords, callback) {
+        async.map(keywords, (keyword, cb) => {
+            this.models.keywords.fetchKeywordSynonyms(keyword.id, (error, synonyms) => {
+                if (error) {
+                    cb(error);
+                } else {
+                    keyword.synonyms = synonyms;
+                    cb(null, keyword);
+                }
+            });
+        }, callback);
+    }
+
+    _fetch(metadataId, callback) {
+        this.db.asCallback((knex, cb) => {
+            knex.select()
+                .from(this.baseTableName)
+                .innerJoin('field_text', 'field_text.field_id', this.baseTableName + '.id')
+                .where('id', metadataId)
+                .asCallback((error, metadata) => {
+                if (error) {
+                    cb(error);
+                } else if (metadata.length > 0) {
+                    cb(null, ChangeCaseUtil.convertKeysToCamelCase(metadata[0]));
+                } else {
+                    cb(new Error('Item not found: ' + metadataId));
+                }
+            });
+        }, callback);
+    }
+
+    _fetchByIds(metadataIds, callback) {
+        this.db.asCallback((knex, cb) => {
+            knex.select()
+                .from(this.baseTableName)
+                .innerJoin('field_text', 'field_text.field_id', this.baseTableName + '.id')
+                .whereIn('id', metadataIds)
+                .asCallback((error, fieldsMetadata) => {
+                    if (error) {
+                        cb(error);
+                    } else {
+                        cb(null, ChangeCaseUtil.convertKeysToCamelCase(fieldsMetadata));
+                    }
+                });
+        }, callback);
     }
 
     findMany(ids, callback) {

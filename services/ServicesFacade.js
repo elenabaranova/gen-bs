@@ -14,8 +14,10 @@ const SearchService = require('./SearchService');
 const TokenService = require('./TokenService');
 
 class ServiceFacade {
-  constructor(config, models) {
+  constructor(config, logger, models) {
     this.config = config;
+    this.logger = logger;
+
     this.views = new ViewsService(this, models);
     this.filters = new FiltersService(this, models);
     this.users = new UsersService(this, models);
