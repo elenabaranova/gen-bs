@@ -64,7 +64,7 @@ export function fetchSamples() {
                 const samples = response.body;
 
                 dispatch(receiveSamplesList(samples));
-                
+
                 if (currentSample) {
                     dispatch(changeSample(currentSample.id));
                 } else if (samples && samples.length) {
@@ -110,6 +110,8 @@ export function requestUpdateSampleFields(sampleId) {
                 } else {
                     const updatedSample = response.body;
                     dispatch(receiveUpdatedSample(sampleId, updatedSample));
+                    // If updating current sample, remember the sample id is changed during update
+                    // so select new version of the sample.
                     if (currentSample && currentSample.id === sampleId) {
                         dispatch(changeSample(updatedSample.id))
                     }

@@ -69,8 +69,9 @@ export default function samplesList(state = {
             return Object.assign({}, state, {samples: newSamples});
 
         case ActionTypes.CHANGE_SAMPLE:
+            const {sampleId} = action;
             return Object.assign({}, state, {
-                currentSample: _.find(state.samples, {id: action.sampleId})
+                currentSample: _.find(state.samples, {id: sampleId})
             });
 
         default:
