@@ -56,12 +56,20 @@ export function fetchSamples() {
             } else if (response.status !== HttpStatus.OK) {
                 dispatch(handleError(null, FETCH_SAMPLES_SERVER_ERROR));
             } else {
+                const {
+                    samplesList: {
+                        currentSample
+                    }
+                } = getState();
                 const samples = response.body;
-                const sample = getState().samplesList.currentSample || samples[0] || null;
-                const sampleId = sample.id;
 
                 dispatch(receiveSamplesList(samples));
-                dispatch(changeSample(sampleId));
+                
+                if (currentSample) {
+                    dispatch(changeSample(currentSample.id));
+                } else if (samples && samples.length) {
+                    dispatch(changeSample(samples[0].id));
+                }
             }
         });
     }
