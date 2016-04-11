@@ -76,7 +76,7 @@ function mapStateToProps(state) {
 
     return {
         modalWindows,
-        samples: userData.samples,
+        samples: samplesList.samples,
         views: userData.views,
         filters: userData.filters,
         ui,
