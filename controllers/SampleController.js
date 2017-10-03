@@ -6,6 +6,8 @@ const async = require('async');
 
 const UserEntityControllerBase = require('./base/UserEntityControllerBase');
 const VCFParseUtils = require('../utils/VCFParseUtils');
+const {SAMPLE_TYPE} = require('../utils/Enums');
+
 
 class SampleController extends UserEntityControllerBase {
     constructor(services) {
@@ -39,8 +41,26 @@ class SampleController extends UserEntityControllerBase {
                     callback(null, sampleFile, fileName);
                 }
             },
-            (sampleFile, fileName, callback) => VCFParseUtils.parseSampleNames(sampleFile,
-                (error, sampleNames) => callback(null, sampleFile, fileName, error, error ? [] : sampleNames)),
+            (sampleFile, fileName, callback) => {
+                const fileType = fileName.split('.').slice(-2)[0];
+                const defaultGenotype = 'GENOTYPE';
+                switch (fileType) {
+                    case SAMPLE_TYPE.TXT:
+                        // because 23andme file
+                        callback(null, sampleFile, fileName, null, [defaultGenotype]);
+                        break;
+                    case SAMPLE_TYPE.VCF:
+                        VCFParseUtils.parseSampleNames(
+                            sampleFile,
+                            (error, sampleNames) => {
+                                callback(null, sampleFile, fileName, error, error ? [] : sampleNames);
+                            }
+                        );
+                        break;
+                    default:
+                        callback(new Error('Unknown sample type.'));
+                }
+            },
             (sampleFile, fileName, parseError, sampleNames, callback) => {
                 this.services.samples.createHistoryEntry(user, fileName, parseError, (error, fileId) => {
                     callback(error || parseError, sampleFile, fileName, sampleNames, fileId);
